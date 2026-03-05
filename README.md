@@ -1,5 +1,5 @@
 # Leidos Real-Time Eval Suite
-![Screenshot](Screen Shot 2026-03-05 at 12.57.34 PM.png)
+
 Production-style SWE interview project focused on:
 - real-time, multi-threaded systems
 - low-level communications protocols (TCP/IP + UDP, with SCTP capability abstraction)
