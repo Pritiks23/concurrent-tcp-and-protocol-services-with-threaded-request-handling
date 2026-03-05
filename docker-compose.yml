@@ -1,0 +1,16 @@
+version: '3.9'
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+      - "9101:9101"
+      - "9102:9102/udp"
+    environment:
+      APP_NAME: Leidos Real-Time Eval Suite
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      TCP_HOST: 0.0.0.0
+      TCP_PORT: 9101
+      UDP_HOST: 0.0.0.0
+      UDP_PORT: 9102

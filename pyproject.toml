@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leidos-realtime-eval-suite"
+version = "0.1.0"
+description = "Production-style SWE interview project: real-time protocol services, AI output evaluation, and automated testing"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Pritika Vipin" }]
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.31.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "httpx>=0.27.0",
+  "ruff>=0.7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["frontend*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

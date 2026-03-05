@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leidos Real-Time Eval Suite</title>
+  <style>
+    :root {
+      --bg-1: #0f172a;
+      --bg-2: #1e293b;
+      --accent: #0ea5e9;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --text: #e2e8f0;
+      --panel: rgba(15, 23, 42, 0.72);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      background: linear-gradient(150deg, var(--bg-1), #0b1024 45%, var(--bg-2));
+    }
+    .shell {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      border-radius: 14px;
+      padding: 16px;
+      backdrop-filter: blur(6px);
+    }
+    h1 { grid-column: 1 / -1; margin: 0 0 8px; }
+    h2 { margin: 0 0 12px; font-size: 1.05rem; }
+    button {
+      background: var(--accent);
+      color: #071220;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-right: 8px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    input, textarea, select {
+      width: 100%;
+      margin: 6px 0 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.8);
+      color: var(--text);
+      padding: 8px;
+    }
+    .kpi { font-size: 1.7rem; font-weight: 800; }
+    .log {
+      max-height: 230px;
+      overflow: auto;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+    }
+    .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 700; }
+    .ok { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+    .warn { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .bad { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Leidos Real-Time Eval Suite</h1>
+
+    <section class="card">
+      <h2>Protocol Runtime</h2>
+      <button id="startBtn">Start Services</button>
+      <button id="stopBtn">Stop Services</button>
+      <p>TCP: <span id="tcpRunning" class="pill warn">Unknown</span></p>
+      <p>UDP: <span id="udpRunning" class="pill warn">Unknown</span></p>
+      <p>Active TCP Connections: <span id="tcpConn" class="kpi">0</span></p>
+      <p>UDP Packets Processed: <span id="udpPkts" class="kpi">0</span></p>
+    </section>
+
+    <section class="card">
+      <h2>Probe Endpoint</h2>
+      <label>Protocol</label>
+      <select id="probeProtocol">
+        <option value="tcp">TCP</option>
+        <option value="udp">UDP</option>
+      </select>
+      <label>Payload</label>
+      <input id="probePayload" value="hello-leidos" />
+      <button id="probeBtn">Send Probe</button>
+      <p>Response:</p>
+      <div id="probeResponse" class="log"></div>
+    </section>
+
+    <section class="card">
+      <h2>AI Output Evaluation</h2>
+      <label>Prompt</label>
+      <textarea id="prompt">Explain TCP congestion control basics.</textarea>
+      <label>Model Output</label>
+      <textarea id="modelOutput">TCP uses mechanisms like slow start and congestion avoidance to adapt send rate.</textarea>
+      <label>Expected Keywords (comma-separated)</label>
+      <input id="keywords" value="slow start,congestion avoidance,window" />
+      <label>Latency (ms)</label>
+      <input id="latency" type="number" value="180" />
+      <button id="evalBtn">Evaluate</button>
+      <div id="evalResult" class="log"></div>
+    </section>
+
+    <section class="card" style="grid-column: 1 / -1;">
+      <h2>Telemetry</h2>
+      <div id="telemetry" class="log"></div>
+    </section>
+  </main>
+
+  <script>
+    const byId = (id) => document.getElementById(id);
+
+    async function fetchJson(url, opts = {}) {
+      const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    function pill(el, ok) {
+      el.className = `pill ${ok ? 'ok' : 'bad'}`;
+      el.textContent = ok ? 'Running' : 'Stopped';
+    }
+
+    async function refreshStatus() {
+      const s = await fetchJson('/api/status');
+      pill(byId('tcpRunning'), s.tcp_running);
+      pill(byId('udpRunning'), s.udp_running);
+      byId('tcpConn').textContent = s.tcp_connections;
+      byId('udpPkts').textContent = s.udp_packets;
+    }
+
+    async function refreshTelemetry() {
+      const t = await fetchJson('/api/telemetry');
+      byId('telemetry').textContent = t.events.slice(-25).map(e => {
+        const dt = new Date(e.timestamp * 1000).toLocaleTimeString();
+        return `[${dt}] [${e.level}] [${e.source}] ${e.message}`;
+      }).join('\n');
+    }
+
+    byId('startBtn').onclick = async () => { await fetchJson('/api/services/start', { method: 'POST' }); await refreshStatus(); };
+    byId('stopBtn').onclick = async () => { await fetchJson('/api/services/stop', { method: 'POST' }); await refreshStatus(); };
+
+    byId('probeBtn').onclick = async () => {
+      const data = await fetchJson('/api/probe', {
+        method: 'POST',
+        body: JSON.stringify({ protocol: byId('probeProtocol').value, payload: byId('probePayload').value })
+      });
+      byId('probeResponse').textContent = data.response;
+      await refreshStatus();
+      await refreshTelemetry();
+    };
+
+    byId('evalBtn').onclick = async () => {
+      const payload = {
+        prompt: byId('prompt').value,
+        model_output: byId('modelOutput').value,
+        expected_keywords: byId('keywords').value.split(',').map(s => s.trim()).filter(Boolean),
+        latency_ms: Number(byId('latency').value),
+        contains_sensitive_data: false
+      };
+      const res = await fetchJson('/api/ai/evaluate', { method: 'POST', body: JSON.stringify(payload) });
+      byId('evalResult').textContent = JSON.stringify(res, null, 2);
+    };
+
+    setInterval(() => { refreshStatus().catch(() => {}); refreshTelemetry().catch(() => {}); }, 1500);
+    refreshStatus();
+    refreshTelemetry();
+  </script>
+</body>
+</html>
